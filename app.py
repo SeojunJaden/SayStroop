@@ -8,10 +8,6 @@ import os
 from pathlib import Path
 import base64
 from dotenv import load_dotenv
-from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
-import av
-import queue
-import threading
 
 # Page config
 st.set_page_config(
@@ -20,11 +16,11 @@ st.set_page_config(
     layout="wide"
 )
 
-#api key from .env!! 
+#api key from .env!! (make sure to create this file with your own key!!!)
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Custom CSS and JavaScript from V0 
+# Custom CSS and JavaScript 
 st.markdown("""
 <style>
     .main {
@@ -48,7 +44,6 @@ st.markdown("""
         margin-bottom: 15px;
         margin-top: 20px;
     }
-
     .recording-indicator {
         text-align: center;
         color: #ef4444;
@@ -75,32 +70,45 @@ st.markdown("""
         justify-content: flex-start;
         padding-top: 20px;
         width: 100%;
+        background-color: white;
+        
     }
     .welcome-container {
         max-width: 800px;
         margin: 0 auto;
         padding: 10px 40px;
+        background-color: white;
     }
-    .webrtc-container {
-        text-align: center;
+    .mic-button {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background-color: #ef4444;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         margin: 20px auto;
+        font-size: 48px;
+        transition: all 0.3s;
+    }
+    .mic-button:hover {
+        background-color: #dc2626;
+        transform: scale(1.1);
+    }
+    .mic-button.recording {
+        background-color: #22c55e;
+        animation: recording-pulse 1s ease-in-out infinite;
+    }
+    @keyframes recording-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
     }
 </style>
 """, unsafe_allow_html=True)
 
-#COLORS
-TRIAL_TIME_LIMIT = 4 
-COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']
-COLOR_MAP = {
-    'red': '#ef4444',
-    'blue': '#3b82f6',
-    'green': '#22c55e',
-    'yellow': '#eab308',
-    'purple': '#a855f7',
-    'orange': '#f97316'
-}
-
-#streamlit session state
+#session state
 if 'started' not in st.session_state:
     st.session_state.started = False
 if 'current_trial' not in st.session_state:
@@ -115,18 +123,29 @@ if 'current_color' not in st.session_state:
     st.session_state.current_color = None
 if 'audio_files' not in st.session_state:
     st.session_state.audio_files = []
-if 'audio_queue' not in st.session_state:
-    st.session_state.audio_queue = queue.Queue()
-if 'recording' not in st.session_state:
-    st.session_state.recording = False
-if 'time_expired' not in st.session_state:
-    st.session_state.time_expired = False
-if 'auto_recording_started' not in st.session_state:
-    st.session_state.auto_recording_started = False
-if 'recording_end_time' not in st.session_state:
-    st.session_state.recording_end_time = None
+if 'audio_data' not in st.session_state:
+    st.session_state.audio_data = None
+if 'mic_enabled' not in st.session_state:
+    st.session_state.mic_enabled = False
+if 'word_start_time' not in st.session_state:
+    st.session_state.word_start_time = None
+if 'audio_input' not in st.session_state:
+    st.session_state.audio_input = None
+    
+# Color definitions and how long each trial lasts 
+TRIAL_TIME_LIMIT = 3
+COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']
+COLOR_MAP = {
+    'red': '#ef4444',
+    'blue': '#3b82f6',
+    'green': '#22c55e',
+    'yellow': '#eab308',
+    'purple': '#a855f7',
+    'orange': '#f97316'
+}
 
 def generate_trial():
+    """Generate a new Stroop trial with mismatched word and color"""
     word = random.choice(COLORS)
     available_colors = [c for c in COLORS if c != word]
     color = random.choice(available_colors)
@@ -166,8 +185,10 @@ def transcribe_audio(audio_bytes):
         return None
 
 def parse_color_from_transcript(transcript):
+    """Extract color from transcript"""
     if not transcript:
         return None
+    
     for color in COLORS:
         if color in transcript:
             return color
@@ -198,49 +219,27 @@ def handle_answer(answer, reaction_time=None, transcript=None):
         st.session_state.current_trial += 1
         st.session_state.current_word, st.session_state.current_color = generate_trial()
         st.session_state.start_time = time.time()
-        st.session_state.auto_recording_started = False
-        st.session_state.recording_end_time = time.time() + TRIAL_TIME_LIMIT
+        st.session_state.word_start_time = time.time()
     else:
         st.session_state.started = False
 
-def check_recording_timeout():
-    if (st.session_state.started and 
-        st.session_state.recording_end_time and 
-        time.time() >= st.session_state.recording_end_time and
-        not st.session_state.time_expired):
-        st.session_state.time_expired = True
-        return True
-    return False
-
 def show_results():
+    """Display test results"""
     st.markdown("<div class='centered-container'>", unsafe_allow_html=True)
     
     correct_count = sum(1 for r in st.session_state.results if r['correct'])
     avg_time = sum(r['time'] for r in st.session_state.results) / len(st.session_state.results)
     
-    st.success(f"You got {correct_count} out of 20 correct!")
+    st.success(f"You got {correct_count} out of 10 correct!")
     st.info(f"Average reaction time: {avg_time:.2f}s")
-    
-    
+
     if st.session_state.results:
         results_text = "Trial,Word,Color,Answer,Correct,Time(s),Transcript\n"
         for r in st.session_state.results:
             results_text += f"{r['trial']},{r['word']},{r['color']},{r['answer']},{r['correct']},{r['time']:.2f},{r.get('transcript', 'N/A')}\n"
-
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# WebRTC 
-class AudioProcessor:
-    def __init__(self):
-        self.frames = []
-        self.is_recording = False
         
-    def recv(self, frame):
-        if self.is_recording:
-            self.frames.append(frame)
-        return frame
-    
+
+
 if not st.session_state.started and len(st.session_state.results) == 0:
     # WELCOME PAGE
     st.markdown("<div class='welcome-container'>", unsafe_allow_html=True)
@@ -262,11 +261,18 @@ if not st.session_state.started and len(st.session_state.results) == 0:
         <li>You'll see color words displayed in different colors</li>
         <li>Say the COLOR of the text out loud (not the word itself!)</li>
         <li>For example, if you see <span style='color: #ef4444;'>BLUE</span>, say "red"</li>
-        <li>You have 4 seconds per trial to respond</li>
         <li>Complete 20 trials as quickly and accurately as possible</li>
+        
     </ul>
     </div>
     """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    st.markdown("""
+    """, unsafe_allow_html=True)
+    
+    st.session_state.audio_input = st.audio_input("Test your microphone", label_visibility="visible")
     
     st.markdown("<br>", unsafe_allow_html=True)
     
@@ -279,9 +285,7 @@ if not st.session_state.started and len(st.session_state.results) == 0:
             st.session_state.audio_files = []
             st.session_state.current_word, st.session_state.current_color = generate_trial()
             st.session_state.start_time = time.time()
-            st.session_state.time_expired = False
-            st.session_state.auto_recording_started = False
-            st.session_state.recording_end_time = time.time() + TRIAL_TIME_LIMIT
+            st.session_state.word_start_time = time.time()
             st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
@@ -289,44 +293,53 @@ if not st.session_state.started and len(st.session_state.results) == 0:
 elif st.session_state.started:
     st.markdown("<div class='test-container'>", unsafe_allow_html=True)
     word_color = COLOR_MAP[st.session_state.current_color]
-    st.markdown(f"""
-    <div class='stroop-word' style='color: {word_color};'>
+    st.markdown(f"""<div class='stroop-word' style='color: {word_color};'>
         {st.session_state.current_word}
-    </div>
     """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    if not st.session_state.auto_recording_started:
-        st.session_state.auto_recording_started = True
-        st.markdown("<div class='recording-indicator'>Recording started automatically...</div>", 
-                   unsafe_allow_html=True)
 
-    check_recording_timeout()
-    webrtc_ctx = webrtc_streamer(
-        key=f"speech_{st.session_state.current_trial}",
-        mode=WebRtcMode.SENDONLY,
-        rtc_configuration=RTCConfiguration(
-            {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-        ),
-        media_stream_constraints={"video": False, "audio": True},
-        async_processing=True,
-    )
-    if webrtc_ctx.state.playing:
-        st.markdown("<div style='text-align: center;'><p style='color: #22c55e; font-size: 20px;'><strong>Speak the color now!</strong></p></div>", 
-                   unsafe_allow_html=True)
-    else:
-        st.markdown("<div style='text-align: center;'><p style='color: #666; font-size: 16px;'>Click START to begin recording</p></div>", 
-                   unsafe_allow_html=True)
-    
+    st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #666;'></p>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
-    if st.session_state.auto_recording_started and st.session_state.recording_end_time:
-        if time.time() < st.session_state.recording_end_time:
+    
+    if st.session_state.audio_input is None:
+        st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
+    
+    audio_bytes = st.session_state.audio_input
+    
+    if audio_bytes:
+        st.markdown("Processing your answer", 
+                   unsafe_allow_html=True)
+        
+        audio_data = audio_bytes.read()
+        transcript = transcribe_audio(audio_data)
+        
+        if transcript:
+            color_answer = parse_color_from_transcript(transcript)
+            
+            if color_answer:
+                reaction_time = time.time() - st.session_state.start_time
+                handle_answer(color_answer, reaction_time, transcript)
+                time.sleep(0.5)
+                st.rerun()
+
+    if st.session_state.word_start_time:
+        elapsed = time.time() - st.session_state.word_start_time
+        
+        if elapsed >= TRIAL_TIME_LIMIT:
+            handle_answer("NONE", elapsed, "No response")
+            time.sleep(0.2)
+            st.rerun()
+        else:
             time.sleep(0.1)
             st.rerun()
+        
+    st.markdown("</div>", unsafe_allow_html=True)
 
+    
 else:
     show_results()
+
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: #666; padding: 20px;'>sayStroop Test © 2025</div>", 
            unsafe_allow_html=True)
