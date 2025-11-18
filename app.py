@@ -172,9 +172,7 @@ def transcribe_with_timestamps(audio_bytes):
         return None
 
 def match_responses_to_trials(transcript, trial_timestamps):
-    results = []
-
-    
+    results = []    
     words = transcript.words
     
     for i, (trial, trial_start) in enumerate(zip(st.session_state.trials, trial_timestamps)):
@@ -236,7 +234,6 @@ if not st.session_state.started:
         <li>Complete all 20 trials - we'll match your responses automatically</li>
     </ul>
     <br>
-    <strong>⚠️ Important:</strong> Keep the recording active throughout the entire test!
     </div>
     """, unsafe_allow_html=True)
     
@@ -287,9 +284,7 @@ elif st.session_state.started and not st.session_state.test_complete:
             trial = st.session_state.trials[current_trial_index]
             if len(st.session_state.trial_timestamps) <= current_trial_index:
                 st.session_state.trial_timestamps.append(elapsed)
-            
-            st.markdown("<div class='test-container'>", unsafe_allow_html=True)
-            
+            st.markdown("<div class='test-container'>", unsafe_allow_html=True)      
             word_color = COLOR_MAP[trial['color']]
             st.markdown(f"<div class='stroop-word' style='color: {word_color};'>{trial['word']}</div>", 
                         unsafe_allow_html=True)
@@ -301,7 +296,7 @@ elif st.session_state.started and not st.session_state.test_complete:
     else:
         st.markdown("### Click START on the audio recorder in the sidebar to begin!")
 
-# PROCESSING RESULTS
+
 elif st.session_state.test_complete and not st.session_state.results:
     
     with st.spinner("Converting and transcribing audio..."):
@@ -321,22 +316,18 @@ elif st.session_state.test_complete and not st.session_state.results:
         else:
             st.error("No audio was recorded. Please try again.")
 
-# SHOW RESULTS
 else:
     st.markdown("<div class='welcome-container'>", unsafe_allow_html=True)
-
-    
     correct_count = sum(1 for r in st.session_state.results if r['correct'])
     avg_time = sum(r['time'] for r in st.session_state.results) / len(st.session_state.results)
     
     col1, col2 = st.columns(2)
     with col1:
-        st.metric("Correct Answers", f"{correct_count}/20")
+        st.metric("Correct Answers", f"{correct_count}/10")
     with col2:
         st.metric("Average Response Time", f"{avg_time:.2f}s")
     
     if st.button("Take Test Again"):
-        # Reset everything
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
