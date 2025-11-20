@@ -11,6 +11,7 @@ import io
 import wave
 import array
 import uuid
+import supabase
 from supabase import create_client, Client
 
 # Page config
@@ -240,7 +241,7 @@ def transcribe_segment(segment_bytes, segment_index):
                 language="en",
                 prompt="red, blue, green, yellow, purple, orange"
             )
-        #audio_path.unlink()
+        audio_path.unlink()
         
         return transcript.text.lower().strip()
     
@@ -258,28 +259,39 @@ def parse_color_from_transcript(transcript):
     
     return None
 
-def save_results_to_supabase(results,user_id, user_name):
+def save_results_to_supabase(results, user_id, user_name):
     try:
+        # First, insert or update user in stroop_users table
+        user_response = supabase.table('stroop_users').upsert({
+            'id': user_id,
+            'name': user_name
+        }).execute()
+        
+        # Then insert trial records
         records = []
         for r in results:
             record = {
                 'user_id': user_id,
-                'name': user_name,
                 'trial_number': r['trial'],
                 'word_displayed': r['word'].upper(),
                 'color_displayed': r['color'],
                 'spoken_color': r['answer'] if r['answer'] != 'NO RESPONSE' else None,
                 'transcript': r['transcript'],
-                'timestamp': r.get('absolute_timestamp',0),
+                'display_timestamp': r.get('absolute_timestamp', 0),  # Changed from 'timestamp'
+                'speech_timestamp': None,  # You'll need to calculate this if needed
                 'reaction_time': r['time'],
                 'correct': r['correct']
             }
             records.append(record)
+        
         response = supabase.table('stroop_trials').insert(records).execute()
-        print(response.data)
+        print(f"Successfully inserted {len(response.data)} records")
         return True 
     except Exception as e:
         st.error(f"Error saving results to database: {str(e)}")
+        print(f"Detailed error: {e}")  # This will show in console
+        import traceback
+        traceback.print_exc()  # This will show full stack trace
         return False
 
 
