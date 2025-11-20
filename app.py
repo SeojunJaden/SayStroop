@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 import io
 import wave
 import array
+import uuid
+from supabase import create_client
 
 # Page config
 st.set_page_config(
@@ -18,8 +20,12 @@ st.set_page_config(
     layout="wide"
 )
 
+# OpenAI Client and Suoabase setup
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Custom CSS by v0
 st.markdown("""
@@ -146,11 +152,15 @@ if 'audio_data' not in st.session_state:
     st.session_state.audio_data = None
 if 'await_finish' not in st.session_state:
     st.session_state.await_finish = False
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = str(uuid.uuid4())
+if 'user_name' not in st.session_state:
+    st.session_state.user_name = None
 
 # COLORS AND TRIAL SETTINGS
 COUNTDOWN_TIME = 5
 TRIAL_TIME_LIMIT = 2 
-NUM_TRIALS = 10
+NUM_TRIALS = 20
 COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']
 COLOR_MAP = {
     'red': '#ef4444',
@@ -179,7 +189,7 @@ def generate_trials():
         trials.append({'word': word, 'color': color})
     return trials
 
-def segment_audio_wave(audio_bytes, test_start_offset_sec, segment_duration_sec=2, num_segments=10):
+def segment_audio_wave(audio_bytes, test_start_offset_sec, segment_duration_sec=2, num_segments=20):
     try:
         with wave.open(io.BytesIO(audio_bytes), 'rb') as wav_file:
             n_channels = wav_file.getnchannels()
@@ -248,6 +258,30 @@ def parse_color_from_transcript(transcript):
     
     return None
 
+def save_results_to_supabase(results,user_id, user_name):
+    try:
+        records = []
+        for r in results:
+            record = {
+                'user_id': user_id,
+                'name': user_name,
+                'trial_number': r['trial'],
+                'word_displayed': r['word'].upper(),
+                'color_displayed': r['color'],
+                'spoken_color': r['answer'] if r['answer'] != 'NO RESPONSE' else None,
+                'transcript': r['transcript'],
+                'timestamp': r.get('absolute_timestamp',0),
+                'reaction_time': r['time'],
+                'correct': r['correct']
+            }
+            records.append(record)
+        response = supabase.table('stroop_results').insert(records).execute()
+        return True 
+    except Exception as e:
+        st.error(f"Error saving results to database: {str(e)}")
+        return False
+
+
 def process_segmented_audio(audio_bytes, trials):
     test_start_offset = st.session_state.trial_timestamps[0] if st.session_state.trial_timestamps else 0
     
@@ -272,6 +306,7 @@ def process_segmented_audio(audio_bytes, trials):
             answer = None
         
         correct = answer == trial['color'] if answer else False
+        absolute_timestamp = test_start_offset + (i * TRIAL_TIME_LIMIT)
         
         results.append({
             'trial': i + 1,
@@ -280,7 +315,8 @@ def process_segmented_audio(audio_bytes, trials):
             'answer': answer if answer else 'NO RESPONSE',
             'correct': correct,
             'time': TRIAL_TIME_LIMIT,
-            'transcript': transcript if transcript else 'N/A'
+            'transcript': transcript if transcript else 'N/A',
+            'absolute_timestamp': absolute_timestamp
         })
     
     return results
@@ -313,11 +349,16 @@ if not st.session_state.started:
         """, unsafe_allow_html=True)
     
         st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<p style='color: black; font-size: 24px; font-weight: 500; margin-bottom: 0px;'>Enter your name:</p>", unsafe_allow_html=True)
+        user_name = st.text_input("", key="name_input")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
     
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("START TEST", type="primary", use_container_width=True):
                 #delete_audio_files()
+                st.session_state.user_name = user_name if user_name else "Anonymous"
                 st.session_state.started = True
                 st.session_state.trials = generate_trials()
                 st.session_state.current_trial = 0
@@ -406,7 +447,6 @@ elif st.session_state.await_finish:
         if st.button("FINISH TEST!", type="primary", use_container_width=True):
             st.session_state.await_finish = False
             st.session_state.test_complete = True
-            st.balloons()
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -420,6 +460,16 @@ elif st.session_state.test_complete and not st.session_state.results:
         
         if results:
             st.session_state.results = results
+            with st.spinner("Saving results to database..."):
+                save_success = save_results_to_supabase(
+                    results, 
+                    st.session_state.user_id,
+                    st.session_state.user_name
+                )
+                if save_success:
+                    st.success("Results saved successfully!")
+                else:
+                    st.warning("Results processed but not saved to database")
             st.rerun()
         else:
             st.error("Make sure to Stop the Audio Recording!")
