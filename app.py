@@ -11,7 +11,8 @@ import io
 import wave
 import array
 import uuid
-from supabase import create_client
+import supabase
+from supabase import create_client, Client
 
 # Page config
 st.set_page_config(
@@ -23,9 +24,9 @@ st.set_page_config(
 # OpenAI Client and Suoabase setup
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+SUPABASE_URL=os.getenv("SUPABASE_URL")
+SUPABASE_KEY=os.getenv("SUPABASE_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Custom CSS by v0
 st.markdown("""
@@ -240,7 +241,7 @@ def transcribe_segment(segment_bytes, segment_index):
                 language="en",
                 prompt="red, blue, green, yellow, purple, orange"
             )
-        #audio_path.unlink()
+        audio_path.unlink()
         
         return transcript.text.lower().strip()
     
@@ -258,27 +259,39 @@ def parse_color_from_transcript(transcript):
     
     return None
 
-def save_results_to_supabase(results,user_id, user_name):
+def save_results_to_supabase(results, user_id, user_name):
     try:
+        # First, insert or update user in stroop_users table
+        user_response = supabase.table('stroop_users').upsert({
+            'id': user_id,
+            'name': user_name
+        }).execute()
+        
+        # Then insert trial records
         records = []
         for r in results:
             record = {
                 'user_id': user_id,
-                'name': user_name,
                 'trial_number': r['trial'],
                 'word_displayed': r['word'].upper(),
                 'color_displayed': r['color'],
                 'spoken_color': r['answer'] if r['answer'] != 'NO RESPONSE' else None,
                 'transcript': r['transcript'],
-                'timestamp': r.get('absolute_timestamp',0),
+                'display_timestamp': r.get('absolute_timestamp', 0),  # Changed from 'timestamp'
+                'speech_timestamp': None,  # You'll need to calculate this if needed
                 'reaction_time': r['time'],
                 'correct': r['correct']
             }
             records.append(record)
-        response = supabase.table('stroop_results').insert(records).execute()
+        
+        response = supabase.table('stroop_trials').insert(records).execute()
+        print(f"Successfully inserted {len(response.data)} records")
         return True 
     except Exception as e:
         st.error(f"Error saving results to database: {str(e)}")
+        print(f"Detailed error: {e}")  # This will show in console
+        import traceback
+        traceback.print_exc()  # This will show full stack trace
         return False
 
 
@@ -357,7 +370,7 @@ if not st.session_state.started:
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("START TEST", type="primary", use_container_width=True):
-                #delete_audio_files()
+                delete_audio_files()
                 st.session_state.user_name = user_name if user_name else "Anonymous"
                 st.session_state.started = True
                 st.session_state.trials = generate_trials()
@@ -475,7 +488,7 @@ elif st.session_state.test_complete and not st.session_state.results:
             st.error("Make sure to Stop the Audio Recording!")
             
             if st.button("Try Again"):
-                #delete_audio_files()
+                delete_audio_files()
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
@@ -509,11 +522,11 @@ else:
     col_left, col_button, col_right = st.columns([1, 2, 1])
     with col_button:
         if st.button("Take Test Again", type="secondary", use_container_width=True):
-            #delete_audio_files()
+            delete_audio_files()
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
-            #delete_audio_files()
+            delete_audio_files()
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
