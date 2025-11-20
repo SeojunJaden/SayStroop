@@ -261,13 +261,11 @@ def parse_color_from_transcript(transcript):
 
 def save_results_to_supabase(results, user_id, user_name):
     try:
-        # First, insert or update user in stroop_users table
         user_response = supabase.table('stroop_users').upsert({
             'id': user_id,
             'name': user_name
         }).execute()
         
-        # Then insert trial records
         records = []
         for r in results:
             record = {
@@ -283,15 +281,14 @@ def save_results_to_supabase(results, user_id, user_name):
                 'correct': r['correct']
             }
             records.append(record)
-        
         response = supabase.table('stroop_trials').insert(records).execute()
         print(f"Successfully inserted {len(response.data)} records")
         return True 
     except Exception as e:
         st.error(f"Error saving results to database: {str(e)}")
-        print(f"Detailed error: {e}")  # This will show in console
+        print(f"Detailed error: {e}")  
         import traceback
-        traceback.print_exc()  # This will show full stack trace
+        traceback.print_exc()  
         return False
 
 
