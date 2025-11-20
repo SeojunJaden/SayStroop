@@ -502,22 +502,16 @@ else:
     correct_count = sum(1 for r in st.session_state.results if r['correct'])
     avg_time = sum(r['time'] for r in st.session_state.results) / len(st.session_state.results)
     
-    col1, col2 = st.columns(2)
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"""
-            <div style='text-align: center;'>
-                <div style='font-size: 32px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Correct Answers</div>
-                <div style='font-size: 48px; font-weight: bold; color: #ef4444;'>{correct_count}/{NUM_TRIALS}</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"""
-            <div style='text-align: center;'>
-                <div style='font-size: 32px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Average Response Time</div>
-                <div style='font-size: 48px; font-weight: bold; color: #ef4444;'>{avg_time:.2f}s</div>
-            </div>
-        """, unsafe_allow_html=True)
+    #col1, col2 = st.columns(2)
+    #col1, col2 = st.columns(2)
+    #with col1:
+    st.markdown(f"""
+        <div style='text-align: center;'>
+            <div style='font-size: 32px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Correct Answers</div>
+            <div style='font-size: 48px; font-weight: bold; color: #ef4444;'>{correct_count}/{NUM_TRIALS}</div>
+        </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("<div style='margin-top: 200px;'></div>", unsafe_allow_html=True)
     col_left, col_button, col_right = st.columns([1, 2, 1])
     with col_button:
