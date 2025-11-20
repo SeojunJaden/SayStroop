@@ -229,25 +229,44 @@ def transcribe_segment(segment_bytes, segment_index):
     try:
         temp_dir = Path("audio")
         temp_dir.mkdir(exist_ok=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         audio_path = temp_dir / f"segment_{segment_index}_{timestamp}.wav"
         with open(audio_path, "wb") as f:
             f.write(segment_bytes)
+
         with open(audio_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(
+            result = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
                 language="en",
+                response_format="verbose_json",
+                timestamp_granularities=["word"],
                 prompt="red, blue, green, yellow, purple, orange"
             )
+
         audio_path.unlink()
-        
-        return transcript.text.lower().strip()
-    
+        return result
+
     except Exception as e:
         st.error(f"Error transcribing segment {segment_index}: {str(e)}")
         return None
+
+def extract_color_and_time(result):
+    if not result or not hasattr(result, "words") or result.words is None:
+        return None, None
+    
+    words = getattr(result, "words", None)
+    if not words:
+        return None, None
+    
+    for w in words:
+        word_text = w.word.lower().strip(" ,.!?")
+        if word_text in COLORS:
+            return word_text, w.start
+
+    return None, None
+
 
 def parse_color_from_transcript(transcript):
     if not transcript:
@@ -261,13 +280,11 @@ def parse_color_from_transcript(transcript):
 
 def save_results_to_supabase(results, user_id, user_name):
     try:
-        # First, insert or update user in stroop_users table
         user_response = supabase.table('stroop_users').upsert({
             'id': user_id,
             'name': user_name
         }).execute()
         
-        # Then insert trial records
         records = []
         for r in results:
             record = {
@@ -277,62 +294,87 @@ def save_results_to_supabase(results, user_id, user_name):
                 'color_displayed': r['color'],
                 'spoken_color': r['answer'] if r['answer'] != 'NO RESPONSE' else None,
                 'transcript': r['transcript'],
-                'display_timestamp': r.get('absolute_timestamp', 0),  # Changed from 'timestamp'
-                'speech_timestamp': None,  # You'll need to calculate this if needed
+                'display_timestamp': r.get('absolute_timestamp', 0), 
+                'speech_timestamp': r.get('speech_timestamp'),
                 'reaction_time': r['time'],
                 'correct': r['correct']
             }
             records.append(record)
-        
         response = supabase.table('stroop_trials').insert(records).execute()
         print(f"Successfully inserted {len(response.data)} records")
         return True 
     except Exception as e:
         st.error(f"Error saving results to database: {str(e)}")
-        print(f"Detailed error: {e}")  # This will show in console
+        print(f"Detailed error: {e}")  
         import traceback
-        traceback.print_exc()  # This will show full stack trace
+        traceback.print_exc()  
         return False
 
 
 def process_segmented_audio(audio_bytes, trials):
-    test_start_offset = st.session_state.trial_timestamps[0] if st.session_state.trial_timestamps else 0
-    
+    test_start_offset = (
+        st.session_state.trial_timestamps[0]
+        if st.session_state.trial_timestamps
+        else 0
+    )
+
+    # Cut the full recording into 2-second segments
     segments = segment_audio_wave(
-        audio_bytes, 
+        audio_bytes,
         test_start_offset_sec=test_start_offset,
         segment_duration_sec=TRIAL_TIME_LIMIT,
         num_segments=NUM_TRIALS
     )
-    
+
     if not segments:
         return None
-    
+
     results = []
 
     for i, (segment_bytes, trial) in enumerate(zip(segments, trials)):
-        transcript = transcribe_segment(segment_bytes, i)
-        
-        if transcript:
-            answer = parse_color_from_transcript(transcript)
+        # Get full Whisper result (text + timestamps)
+        result = transcribe_segment(segment_bytes, i)
+
+        spoken_color = None
+        local_speech_time = None
+        transcript = None
+
+        if result:
+            spoken_color, local_speech_time = extract_color_and_time(result)
+            # Get text from verbose_json response
+            transcript = getattr(result, 'text', '').lower().strip()
+
+        # Was the answer correct?
+        correct = (spoken_color == trial["color"]) if spoken_color else False
+
+        # When this trial started globally (in seconds)
+        segment_start = test_start_offset + (i * TRIAL_TIME_LIMIT)
+
+        # Compute reaction time and speech timestamp
+        if local_speech_time is not None:
+            speech_timestamp = segment_start + local_speech_time
+            reaction_time = local_speech_time  # RT = time from segment start to speech
         else:
-            answer = None
-        
-        correct = answer == trial['color'] if answer else False
-        absolute_timestamp = test_start_offset + (i * TRIAL_TIME_LIMIT)
-        
+            speech_timestamp = None
+            reaction_time = None  # No response detected, don't use default 2s
+
         results.append({
-            'trial': i + 1,
-            'word': trial['word'],
-            'color': trial['color'],
-            'answer': answer if answer else 'NO RESPONSE',
-            'correct': correct,
-            'time': TRIAL_TIME_LIMIT,
-            'transcript': transcript if transcript else 'N/A',
-            'absolute_timestamp': absolute_timestamp
+            "trial": i + 1,
+            "word": trial["word"],
+            "color": trial["color"],
+            "answer": spoken_color if spoken_color else "NO RESPONSE",
+            "correct": correct,
+            "time": reaction_time,  # Can be None if no response
+            "transcript": transcript if transcript else "N/A",
+            "absolute_timestamp": segment_start,
+            "speech_timestamp": speech_timestamp
         })
-    
+
     return results
+
+
+
+
 
 #WELCOME PAGE
 if not st.session_state.started:
@@ -500,18 +542,25 @@ else:
     
     
     correct_count = sum(1 for r in st.session_state.results if r['correct'])
-    avg_time = sum(r['time'] for r in st.session_state.results) / len(st.session_state.results)
-    
-    #col1, col2 = st.columns(2)
-    #col1, col2 = st.columns(2)
-    #with col1:
-    st.markdown(f"""
-        <div style='text-align: center;'>
-            <div style='font-size: 32px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Correct Answers</div>
-            <div style='font-size: 48px; font-weight: bold; color: #ef4444;'>{correct_count}/{NUM_TRIALS}</div>
-        </div>
-    """, unsafe_allow_html=True)
-    
+    valid_times = [r['time'] for r in st.session_state.results if r['time'] is not None]
+    avg_time = sum(valid_times) / len(valid_times) if valid_times else 0
+
+    col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"""
+            <div style='text-align: center;'>
+                <div style='font-size: 32px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Correct Answers</div>
+                <div style='font-size: 48px; font-weight: bold; color: #ef4444;'>{correct_count}/{NUM_TRIALS}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""
+            <div style='text-align: center;'>
+                <div style='font-size: 32px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Average Response Time</div>
+                <div style='font-size: 48px; font-weight: bold; color: #ef4444;'>{avg_time:.2f}s</div>
+            </div>
+        """, unsafe_allow_html=True)
     st.markdown("<div style='margin-top: 200px;'></div>", unsafe_allow_html=True)
     col_left, col_button, col_right = st.columns([1, 2, 1])
     with col_button:
