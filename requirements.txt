@@ -3,3 +3,4 @@ streamlit-webrtc
 python-dotenv
 openai>=1.59.5
 supabase
+numpy
