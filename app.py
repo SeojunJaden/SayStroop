@@ -241,6 +241,7 @@ def transcribe_segment(segment_bytes, segment_index):
                 model="whisper-1",
                 file=audio_file,
                 language="en",
+                response_format="verbose_json",
                 timestamp_granularities=["word"],
                 prompt="red, blue, green, yellow, purple, orange"
             )
