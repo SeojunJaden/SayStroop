@@ -14,6 +14,7 @@ Participants will visit the website and read a brief description of the Stroop e
 | <br><br>     | <br><br>             |
 | <br><br>     | <br><br>             |
 | <br><br>     | <br><br>             |
+
 In our experiment we had two trials to extract data from. With trial one, our participant is essentially reading the word being present to them (NOT the font color). Trial one serves as the baseline of our project, demonstrating how reading processes faster since it is highly automated. In trial two, our participant will instead be reading the font color instead of the actual word. In this trial participants will likely have a slower reaction time as they have to process the font color instead of reading the word directly. This highlights the difference between automated and controlled responses as participants will take more time needing to process the difference in word meaning and font color. 
 
 ## Aspects
