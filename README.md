@@ -1,4 +1,4 @@
-# SayStroop 
+# 🧠 SayStroop 
 
 ## Overview
 SayStroop is a website testing a new aspect of the Stroop effect on participants. The goal of this website is to highlight the interference of automatic processing on controlled tasks through the Stroop effect. The website was built using Streamlit with integration of OpenAI's Whisper and Web-RTC for speech recognition. 
