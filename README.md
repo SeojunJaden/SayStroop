@@ -31,8 +31,7 @@ In our experiment we had two trials to extract data from. With trial one, our pa
 - We could expand our range of sampling, as of now we are primarily sampling participants based in the San Diego area. 
 
 ## Resources & Help
-- Streamlit
-- Web-RTC
-- Supabase
+- Languages: Python, HTML
+- Packages: Streamlit, Web-RTC, Supabase, pathlib, Base64, JSON
 - OpenAI's Whisper
 - Generative AI: ChatGPT, Claude, VO
