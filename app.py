@@ -13,6 +13,7 @@ import array
 import uuid
 import supabase
 from supabase import create_client, Client
+import numpy as np  
 
 # Page config
 st.set_page_config(
@@ -21,16 +22,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# OpenAI Client and Supabase setup
+# OpenAI Client and Suoabase setup
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-SUPABASE_URL=os.getenv("SUPABASE_URL")
-SUPABASE_KEY=os.getenv("SUPABASE_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
-
-# Custom CSS
+# Custom CSS by v0
 st.markdown("""
 <style>
     .main {
@@ -54,16 +53,6 @@ st.markdown("""
         margin-bottom: 15px;
         margin-top: 20px;
     }
-    .trial-instruction {
-        font-size: 32px;
-        color: #ef4444;
-        text-align: center;
-        font-weight: bold;
-        padding: 20px;
-        margin-bottom: 20px;
-        background-color: #fee;
-        border-radius: 10px;
-    }
     .countdown-timer {
         font-size: 72px;
         color: #ef4444;
@@ -84,7 +73,7 @@ st.markdown("""
         text-align: center;
         font-weight: bold;
         padding: 40px;
-    }                       
+    }
     .countdown {
         font-size: 48px;
         color: #ef4444;
@@ -136,14 +125,15 @@ st.markdown("""
         font-size: 36px !important;
         color: #ef4444;
     }
+
 </style>
 """, unsafe_allow_html=True)
 
-# Session state initialization
+# Session state
 if 'started' not in st.session_state:
     st.session_state.started = False
 if 'current_phase' not in st.session_state:
-    st.session_state.current_phase = 1  # 1 for trial 1, 2 for trial 2
+    st.session_state.current_phase = 1
 if 'countdown_complete' not in st.session_state:
     st.session_state.countdown_complete = False
 if 'countdown_start_time' not in st.session_state:
@@ -177,7 +167,7 @@ if 'trial2_results' not in st.session_state:
 
 # COLORS AND TRIAL SETTINGS
 COUNTDOWN_TIME = 5
-TRIAL_TIME_LIMIT = 2 
+TRIAL_TIME_LIMIT = 2
 NUM_TRIALS = 20
 COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange']
 COLOR_MAP = {
@@ -213,21 +203,21 @@ def segment_audio_wave(audio_bytes, test_start_offset_sec, segment_duration_sec=
             n_channels = wav_file.getnchannels()
             sampwidth = wav_file.getsampwidth()
             framerate = wav_file.getframerate()
-            
+
             start_frame = int(test_start_offset_sec * framerate)
             start_byte = start_frame * n_channels * sampwidth
-            
+
             all_frames = wav_file.readframes(wav_file.getnframes())
-            test_frames = all_frames[start_byte:] 
-            
+            test_frames = all_frames[start_byte:]
+
             frames_per_segment = int(framerate * segment_duration_sec)
             segments = []
-            
+
             for i in range(num_segments):
                 segment_start = i * frames_per_segment * n_channels * sampwidth
                 segment_end = segment_start + frames_per_segment * n_channels * sampwidth
                 segment_frames = test_frames[segment_start:segment_end]
-                
+
                 segment_buffer = io.BytesIO()
                 with wave.open(segment_buffer, 'wb') as segment_wav:
                     segment_wav.setnchannels(n_channels)
@@ -236,23 +226,24 @@ def segment_audio_wave(audio_bytes, test_start_offset_sec, segment_duration_sec=
                     segment_wav.writeframes(segment_frames)
                 segment_buffer.seek(0)
                 segments.append(segment_buffer.getvalue())
-            
+
             return segments
     except Exception as e:
         st.error(f"Error segmenting audio: {str(e)}")
         return None
 
-def transcribe_segment(segment_bytes, segment_index, phase):
+def transcribe_segment(segment_bytes, segment_index):
     try:
         temp_dir = Path("audio")
         temp_dir.mkdir(exist_ok=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        audio_path = temp_dir / f"phase{phase}_segment_{segment_index}_{timestamp}.wav"
+        audio_path = temp_dir / f"segment_{segment_index}_{timestamp}.wav"
         with open(audio_path, "wb") as f:
             f.write(segment_bytes)
+
         with open(audio_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(
+            result = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
                 language="en",
@@ -260,9 +251,10 @@ def transcribe_segment(segment_bytes, segment_index, phase):
                 timestamp_granularities=["word"],
                 prompt="red, blue, green, yellow, purple, orange"
             )
+
         audio_path.unlink()
-        return transcript.text.lower().strip() #?
-    
+        return result.text.lower().strip()
+
     except Exception as e:
         st.error(f"Error transcribing segment {segment_index}: {str(e)}")
         return None
@@ -270,28 +262,58 @@ def transcribe_segment(segment_bytes, segment_index, phase):
 def extract_color_and_time(result):
     if not result or not hasattr(result, "words") or result.words is None:
         return None, None
-    
     words = getattr(result, "words", None)
     if not words:
         return None, None
-    
-    for w in words:
-        word_text = w.word.lower().strip(" ,.!?")
-        if word_text in COLORS:
-            return word_text, w.start
+    for w in result.words:
+        clean_word = w.word.lower().strip(" ,.!?")
+        if clean_word in COLORS:
+            return clean_word, w.start
 
     return None, None
-
 
 def parse_color_from_transcript(transcript):
     if not transcript:
         return None
-    
     for color in COLORS:
         if color in transcript:
             return color
-    
     return None
+
+def detect_voice_start(segment_bytes, energy_threshold=0.01, frame_ms=10):
+    try:
+        with wave.open(io.BytesIO(segment_bytes), 'rb') as wav_file:
+            n_channels = wav_file.getnchannels()
+            sampwidth = wav_file.getsampwidth()
+            framerate = wav_file.getframerate()
+            raw = wav_file.readframes(wav_file.getnframes())
+
+        if sampwidth != 2:  # expect 16-bit PCM
+            return None
+
+        audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32)
+
+        if n_channels == 2:
+            audio = audio.reshape(-1, 2).mean(axis=1)
+
+        max_val = np.max(np.abs(audio)) + 1e-9
+        audio = audio / max_val
+
+        frame_size = int(framerate * (frame_ms / 1000.0))
+
+        for i in range(0, len(audio), frame_size):
+            frame = audio[i:i+frame_size]
+            if len(frame) == 0:
+                break
+            energy = np.mean(frame ** 2)
+            if energy > energy_threshold:
+                return i / framerate  
+
+        return None
+
+    except Exception as e:
+        print("VAD ERROR:", e)
+        return None
 
 def save_results_to_supabase(trial1_results, trial2_results, user_id, user_name):
     try:
@@ -299,96 +321,104 @@ def save_results_to_supabase(trial1_results, trial2_results, user_id, user_name)
             'id': user_id,
             'name': user_name
         }).execute()
-        
+
         records = []
-        
-        # Save Trial 1 results (Color naming)
-        for r in trial1_results:
+        for r in results:
             record = {
                 'user_id': user_id,
                 'trial_type': 'color_naming',
                 'trial_number': r['trial'],
                 'word_displayed': r['word'].upper(),
                 'color_displayed': r['color'],
-                'spoken_response': r['answer'] if r['answer'] != 'NO RESPONSE' else None,
+                'spoken_color': r['answer'] if r['answer'] != 'NO RESPONSE' else None,
                 'transcript': r['transcript'],
                 'display_timestamp': r.get('absolute_timestamp', 0),
-                'speech_timestamp': None,
+                'speech_timestamp': r.get('speech_timestamp'),
                 'reaction_time': r['time'],
                 'correct': r['correct']
             }
             records.append(record)
-        
-        # Save Trial 2 results (Word reading)
-        for r in trial2_results:
+        for r in results:
             record = {
                 'user_id': user_id,
                 'trial_type': 'word_reading',
                 'trial_number': r['trial'],
                 'word_displayed': r['word'].upper(),
                 'color_displayed': r['color'],
-                'spoken_response': r['answer'] if r['answer'] != 'NO RESPONSE' else None,
+                'spoken_color': r['word'].upper() if r['answer'] != 'NO RESPONSE' else None,
                 'transcript': r['transcript'],
                 'display_timestamp': r.get('absolute_timestamp', 0),
-                'speech_timestamp': None,
+                'speech_timestamp': r.get('speech_timestamp'),
                 'reaction_time': r['time'],
                 'correct': r['correct']
             }
             records.append(record)
-        
         response = supabase.table('stroop_trials').insert(records).execute()
         print(f"Successfully inserted {len(response.data)} records")
-        return True 
+        return True
     except Exception as e:
         st.error(f"Error saving results to database: {str(e)}")
-        print(f"Detailed error: {e}")  
+        print(f"Detailed error: {e}")
         import traceback
-        traceback.print_exc()  
+        traceback.print_exc()
         return False
 
 def process_segmented_audio(audio_bytes, trials, phase):
-    test_start_offset = st.session_state.trial_timestamps[0] if st.session_state.trial_timestamps else 0
-    
+    test_start_offset = (
+        st.session_state.trial_timestamps[0]
+        if st.session_state.trial_timestamps
+        else 0
+    )
     segments = segment_audio_wave(
-        audio_bytes, 
+        audio_bytes,
         test_start_offset_sec=test_start_offset,
         segment_duration_sec=TRIAL_TIME_LIMIT,
         num_segments=NUM_TRIALS
     )
-    
+
     if not segments:
         return None
-    
+
     results = []
 
     for i, (segment_bytes, trial) in enumerate(zip(segments, trials)):
-        transcript = transcribe_segment(segment_bytes, i, phase)
-        
-        if transcript:
-            answer = parse_color_from_transcript(transcript)
+        result = transcribe_segment(segment_bytes, i)
+        if result:
+            transcript = result.text.lower().strip()
+            spoken_color = parse_color_from_transcript(transcript)
         else:
-            answer = None
-        
-        # For phase 1: check if answer matches color (say the COLOR)
-        # For phase 2: check if answer matches word (say the WORD)
+            transcript = "N/A"
+            spoken_color = None
+
         if phase == 1:
-            correct = answer == trial['color'] if answer else False
-        else:  # phase == 2
-            correct = answer == trial['word'] if answer else False
-        
-        absolute_timestamp = test_start_offset + (i * TRIAL_TIME_LIMIT)
-        
+            correct = (spoken_color == trial["color"]) if spoken_color else False
+        else:
+            correct = (spoken_color == trial["word"]) if spoken_color else False
+
+        vad_time = detect_voice_start(segment_bytes)
+
+        correct = (spoken_color == trial["color"]) if spoken_color else False
+        segment_start = test_start_offset + (i * TRIAL_TIME_LIMIT)
+
+        if vad_time is not None:
+            speech_timestamp = segment_start + vad_time
+            reaction_time = vad_time
+        else:
+            speech_timestamp = None
+            reaction_time = TRIAL_TIME_LIMIT
+
         results.append({
-            'trial': i + 1,
-            'word': trial['word'],
-            'color': trial['color'],
-            'answer': answer if answer else 'NO RESPONSE',
-            'correct': correct,
-            'time': TRIAL_TIME_LIMIT,
-            'transcript': transcript if transcript else 'N/A',
-            'absolute_timestamp': absolute_timestamp
+            "trial": i + 1,
+            "word": trial["word"],
+            "color": trial["color"],
+            "answer": spoken_color if spoken_color else "NO RESPONSE",
+            "correct": correct,
+            "time": reaction_time,
+            "transcript": transcript,
+            "absolute_timestamp": segment_start,
+            "speech_timestamp": speech_timestamp
         })
-    
+
     return results
 
 # WELCOME PAGE
@@ -538,10 +568,8 @@ elif st.session_state.await_finish:
         if st.button(button_text, type="primary", use_container_width=True):
             st.session_state.await_finish = False
             if st.session_state.current_phase == 1:
-                # Process trial 1 and move to trial 2
                 st.session_state.test_complete = True
             else:
-                # Process trial 2 and show final results
                 st.session_state.test_complete = True
             st.rerun()
 
@@ -566,9 +594,8 @@ elif st.session_state.test_complete and (
                 st.session_state.trial1_results = results
                 st.success("Trial 1 processed!")
                 time.sleep(2)
-                # Move to trial 2
                 st.session_state.current_phase = 2
-                st.session_state.trials = generate_trials()  # New set of trials for phase 2
+                st.session_state.trials = generate_trials()  
                 st.session_state.countdown_complete = False
                 st.session_state.countdown_start_time = time.time()
                 st.session_state.test_complete = False
@@ -576,8 +603,7 @@ elif st.session_state.test_complete and (
                 st.rerun()
             else:
                 st.session_state.trial2_results = results
-                # Save both trials to database
-                with st.spinner("Saving results to database..."):
+                with st.spinner("Saving results to database"):
                     save_success = save_results_to_supabase(
                         st.session_state.trial1_results,
                         st.session_state.trial2_results,
@@ -602,10 +628,10 @@ elif st.session_state.test_complete and (
 else:
     st.markdown("<div class='finish-container'>", unsafe_allow_html=True)
     
-    st.markdown("<h2 style='text-align: center; color: #ef4444;'>Test Complete! 🎉</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #ef4444;'>Test Complete, Thank you for your time!</h2>", unsafe_allow_html=True)
     
-    # Trial 1 Results
-    st.markdown("<h3 style='text-align: center; margin-top: 40px;'>Trial 1: Color Naming</h3>", unsafe_allow_html=True)
+ 
+    st.markdown("<div class ='FinishedText2'>Trial 1: Color Naming</div>", unsafe_allow_html=True)
     correct_count_1 = sum(1 for r in st.session_state.trial1_results if r['correct'])
     avg_time_1 = sum(r['time'] for r in st.session_state.trial1_results) / len(st.session_state.trial1_results)
     
@@ -625,8 +651,7 @@ else:
             </div>
         """, unsafe_allow_html=True)
     
-    # Trial 2 Results
-    st.markdown("<h3 style='text-align: center; margin-top: 40px;'>Trial 2: Word Reading</h3>", unsafe_allow_html=True)
+    st.markdown("<div class ='FinishedText2'>Trial 2: Word Reading</div>", unsafe_allow_html=True)
     correct_count_2 = sum(1 for r in st.session_state.trial2_results if r['correct'])
     avg_time_2 = sum(r['time'] for r in st.session_state.trial2_results) / len(st.session_state.trial2_results)
     
@@ -645,15 +670,6 @@ else:
                 <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>{avg_time_2:.2f}s</div>
             </div>
         """, unsafe_allow_html=True)
-    
-    st.markdown("<div style='margin-top: 60px;'></div>", unsafe_allow_html=True)
-    col_left, col_button, col_right = st.columns([1, 2, 1])
-    with col_button:
-        if st.button("Take Test Again", type="secondary", use_container_width=True):
-            delete_audio_files()
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
     
     st.markdown("<div style='margin-top: 100px;'></div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
