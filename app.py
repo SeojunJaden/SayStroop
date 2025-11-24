@@ -23,24 +23,12 @@ st.set_page_config(
 
 # OpenAI Client and Supabase setup
 load_dotenv()
-
-# Check if API keys are loaded
-# DEBUG: Print to see if variables are loading
-print("DEBUG - OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
-print("DEBUG - SUPABASE_URL:", os.getenv("SUPABASE_URL"))
-print("DEBUG - Current directory:", os.getcwd())
-print("DEBUG - .env file exists:", os.path.exists(".env"))
-
-if not OPENAI_API_KEY:
-    st.error("❌ OPENAI_API_KEY not found! Please check your .env file.")
-    st.stop()
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("❌ Supabase credentials not found! Please check your .env file.")
-    st.stop()
-
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+SUPABASE_URL=os.getenv("SUPABASE_URL")
+SUPABASE_KEY=os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
 
 # Custom CSS
 st.markdown("""
@@ -268,15 +256,32 @@ def transcribe_segment(segment_bytes, segment_index, phase):
                 model="whisper-1",
                 file=audio_file,
                 language="en",
+                response_format="verbose_json",
+                timestamp_granularities=["word"],
                 prompt="red, blue, green, yellow, purple, orange"
             )
         audio_path.unlink()
-        
-        return transcript.text.lower().strip()
+        return transcript.text.lower().strip() #?
     
     except Exception as e:
         st.error(f"Error transcribing segment {segment_index}: {str(e)}")
         return None
+
+def extract_color_and_time(result):
+    if not result or not hasattr(result, "words") or result.words is None:
+        return None, None
+    
+    words = getattr(result, "words", None)
+    if not words:
+        return None, None
+    
+    for w in words:
+        word_text = w.word.lower().strip(" ,.!?")
+        if word_text in COLORS:
+            return word_text, w.start
+
+    return None, None
+
 
 def parse_color_from_transcript(transcript):
     if not transcript:
@@ -494,12 +499,6 @@ elif st.session_state.countdown_complete and not st.session_state.test_complete 
             st.session_state.trial_timestamps.append(elapsed)
         
         st.markdown("<div class='test-container'>", unsafe_allow_html=True)
-        
-        # Show instruction banner
-        if st.session_state.current_phase == 1:
-            st.markdown("<div class='trial-instruction'>Say the COLOR</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("<div class='trial-instruction'>Say the WORD</div>", unsafe_allow_html=True)
         
         word_color = COLOR_MAP[trial['color']]
         st.markdown(f"<div class='stroop-word' style='color: {word_color};'>{trial['word']}</div>", 
