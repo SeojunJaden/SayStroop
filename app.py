@@ -287,6 +287,7 @@ def detect_voice_start(segment_bytes, energy_threshold=0.01, frame_ms=10):
             sampwidth = wav_file.getsampwidth()
             framerate = wav_file.getframerate()
             raw = wav_file.readframes(wav_file.getnframes())
+
         if sampwidth != 2: 
             return None
 
@@ -427,9 +428,9 @@ if not st.session_state.started:
         st.markdown("<div class='welcome-container'>", unsafe_allow_html=True)
         st.markdown("### <span style='color: black;'>DS3 Fall Projects</span>", unsafe_allow_html=True)
         st.markdown("<span style='color: black;'>Jaden Lee • Kylan Huynh • Yash Date • Max Ha</span>", unsafe_allow_html=True)
-
+    
         st.markdown("<h1 style='color: black; font-size: 72px;'>sayStroop</h1>", unsafe_allow_html=True)
-
+    
         st.markdown("### :red[Welcome! Ready to Test Your Brain?]")
         st.markdown("""
         <div style='color: black; font-size: 18px; line-height: 1.8;'>
@@ -454,13 +455,13 @@ if not st.session_state.started:
         </ul>
         </div>
         """, unsafe_allow_html=True)
-
+    
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("<p style='color: black; font-size: 24px; font-weight: 500; margin-bottom: 0px;'>Enter your name:</p>", unsafe_allow_html=True)
         user_name = st.text_input("", key="name_input")
-
+        
         st.markdown("<br>", unsafe_allow_html=True)
-
+    
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("START TEST", type="primary", use_container_width=True):
@@ -473,16 +474,16 @@ if not st.session_state.started:
                 st.session_state.countdown_complete = False
                 st.session_state.countdown_start_time = time.time()
                 st.rerun()
-
+    
         st.markdown("</div>", unsafe_allow_html=True)
 
 # COUNTDOWN WITH RECORDING
 elif st.session_state.started and not st.session_state.countdown_complete:
     elapsed = time.time() - st.session_state.countdown_start_time
     time_remaining = COUNTDOWN_TIME - elapsed
-
+    
     st.markdown("<div class='test-container'>", unsafe_allow_html=True)
-
+    
     if time_remaining > 0:
         if st.session_state.current_phase == 1:
             st.markdown(f"<div class='progress'>Trial 1: Color Naming</div>", unsafe_allow_html=True)
@@ -490,18 +491,18 @@ elif st.session_state.started and not st.session_state.countdown_complete:
         else:
             st.markdown(f"<div class='progress'>Trial 2: Word Reading</div>", unsafe_allow_html=True)
             st.markdown(f"<div class='progress'>Say the WORD displayed!</div>", unsafe_allow_html=True)
-
+        
         st.markdown(f"<div class='countdown-timer'>{int(time_remaining) + 1}</div>", unsafe_allow_html=True)
         st.markdown("<div style='height: 50px;'></div>", unsafe_allow_html=True)
         st.markdown("<div style='text-align: center; padding: 20px;'>", unsafe_allow_html=True)
         st.markdown(f"<div class='progress'><strong>Make Sure to Press Record!</strong></div>", unsafe_allow_html=True)
         audio_bytes = st.audio_input("", key=f"recording_phase{st.session_state.current_phase}")
         st.markdown("</div>", unsafe_allow_html=True)
-
+        
         if audio_bytes:
             st.session_state.recording_started = True
             st.session_state.audio_data = audio_bytes.read()
-
+        
         time.sleep(0.1)
         st.rerun()
     else:
@@ -509,58 +510,58 @@ elif st.session_state.started and not st.session_state.countdown_complete:
         st.session_state.test_start_time = time.time()
         st.session_state.trial_timestamps = []
         st.rerun()
-
+    
     st.markdown("</div>", unsafe_allow_html=True)
 
 # RUNNING THE TEST
 elif st.session_state.countdown_complete and not st.session_state.test_complete and not st.session_state.await_finish:
     elapsed = time.time() - st.session_state.test_start_time
     current_trial_index = int(elapsed // TRIAL_TIME_LIMIT)
-
+    
     if current_trial_index >= NUM_TRIALS:
         st.session_state.await_finish = True
         st.rerun()
     else:
         st.session_state.current_trial = current_trial_index
         trial = st.session_state.trials[current_trial_index]
-
+        
         if len(st.session_state.trial_timestamps) <= current_trial_index:
             st.session_state.trial_timestamps.append(elapsed)
-
+        
         st.markdown("<div class='test-container'>", unsafe_allow_html=True)
-
+        
         word_color = COLOR_MAP[trial['color']]
         st.markdown(f"<div class='stroop-word' style='color: {word_color};'>{trial['word']}</div>", 
                     unsafe_allow_html=True)
-
+        
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("<div style='height: 50px;'></div>", unsafe_allow_html=True)
         st.markdown("<div style='text-align: center; padding: 20px;'>", unsafe_allow_html=True)
-
+        
         audio_bytes = st.audio_input("", key=f"recording_phase{st.session_state.current_phase}")
-
+       
         if audio_bytes:
             st.session_state.audio_data = audio_bytes.read()
-
+        
         st.markdown("</div>", unsafe_allow_html=True) 
-
+        
         time.sleep(0.1)
         st.rerun()
 
 # AWAIT FINISH
 elif st.session_state.await_finish: 
     st.markdown("<div class='test-container'>", unsafe_allow_html=True)
-
+    
     if st.session_state.current_phase == 1:
         st.markdown("<div class ='FinishedText2'>Trial 1 Complete!</div>", unsafe_allow_html=True)
     else:
         st.markdown("<div class ='FinishedText2'>Trial 2 Complete!</div>", unsafe_allow_html=True)
-
+    
     st.markdown("<div class ='FinishedText'>Please Stop Your Recording Now<br>Press the Button Below to Continue.</div>", unsafe_allow_html=True)
     audio_bytes = st.audio_input("", key=f"recording_phase{st.session_state.current_phase}")
     if audio_bytes:
         st.session_state.audio_data = audio_bytes.read()
-
+    
     col_left, col_button, col_right = st.columns([1, 2, 1])
     with col_button:
         button_text = "PROCESS TRIAL 1" if st.session_state.current_phase == 1 else "FINISH TEST!"
@@ -580,14 +581,14 @@ elif st.session_state.test_complete and (
     (st.session_state.current_phase == 2 and not st.session_state.trial2_results)
 ):
     st.markdown(f"Processing Trial {st.session_state.current_phase} responses...")
-
+    
     with st.spinner("Segmenting and transcribing audio..."):
         results = process_segmented_audio(
             st.session_state.audio_data, 
             st.session_state.trials,
             st.session_state.current_phase
         )
-
+        
         if results:
             if st.session_state.current_phase == 1:
                 st.session_state.trial1_results = results
@@ -616,7 +617,7 @@ elif st.session_state.test_complete and (
                 st.rerun()
         else:
             st.error("Make sure to Stop the Audio Recording!")
-
+            
             if st.button("Try Again"):
                 delete_audio_files()
                 for key in list(st.session_state.keys()):
@@ -626,14 +627,14 @@ elif st.session_state.test_complete and (
 # SHOW FINAL RESULTS
 else:
     st.markdown("<div class='finish-container'>", unsafe_allow_html=True)
-
+    
     st.markdown("<h2 style='text-align: center; color: #ef4444;'>Test Complete, Thank you for your time!</h2>", unsafe_allow_html=True)
-
-
+    
+ 
     st.markdown("<div class ='FinishedText2'>Trial 1: Color Naming</div>", unsafe_allow_html=True)
     correct_count_1 = sum(1 for r in st.session_state.trial1_results if r['correct'])
     avg_time_1 = sum(r['time'] for r in st.session_state.trial1_results) / len(st.session_state.trial1_results)
-
+    
     col1, col2 = st.columns(2)
     with col1:
         st.markdown(f"""
@@ -649,11 +650,11 @@ else:
                 <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>{avg_time_1:.2f}s</div>
             </div>
         """, unsafe_allow_html=True)
-
+    
     st.markdown("<div class ='FinishedText2'>Trial 2: Word Reading</div>", unsafe_allow_html=True)
     correct_count_2 = sum(1 for r in st.session_state.trial2_results if r['correct'])
     avg_time_2 = sum(r['time'] for r in st.session_state.trial2_results) / len(st.session_state.trial2_results)
-
+    
     col3, col4 = st.columns(2)
     with col3:
         st.markdown(f"""
@@ -669,8 +670,9 @@ else:
                 <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>{avg_time_2:.2f}s</div>
             </div>
         """, unsafe_allow_html=True)
-
+    
     st.markdown("<div style='margin-top: 100px;'></div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("<div style='text-align: center; color: #666; padding: 20px;'>sayStroop Test © 2025</div>", )
+st.markdown("<div style='text-align: center; color: #666; padding: 20px;'>sayStroop Test © 2025</div>", 
+           unsafe_allow_html=True)
