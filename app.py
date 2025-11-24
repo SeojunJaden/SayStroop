@@ -288,7 +288,7 @@ def detect_voice_start(segment_bytes, energy_threshold=0.01, frame_ms=10):
             framerate = wav_file.getframerate()
             raw = wav_file.readframes(wav_file.getnframes())
 
-        if sampwidth != 2:  # expect 16-bit PCM
+        if sampwidth != 2: 
             return None
 
         audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32)
@@ -384,7 +384,7 @@ def process_segmented_audio(audio_bytes, trials, phase):
     for i, (segment_bytes, trial) in enumerate(zip(segments, trials)):
         result = transcribe_segment(segment_bytes, i)
         if result:
-            transcript = result.text.lower().strip()
+            transcript = result
             spoken_color = parse_color_from_transcript(transcript)
         else:
             transcript = "N/A"
