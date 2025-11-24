@@ -253,7 +253,7 @@ def transcribe_segment(segment_bytes, segment_index):
             )
 
         audio_path.unlink()
-        return result.text.lower().strip()
+        return result
 
     except Exception as e:
         st.error(f"Error transcribing segment {segment_index}: {str(e)}")
@@ -394,7 +394,7 @@ def process_segmented_audio(audio_bytes, trials, phase):
             correct = (spoken_color == trial["color"]) if spoken_color else False
         else:
             correct = (spoken_color == trial["word"]) if spoken_color else False
-
+        
         vad_time = detect_voice_start(segment_bytes)
 
         correct = (spoken_color == trial["color"]) if spoken_color else False
