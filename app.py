@@ -383,7 +383,7 @@ def process_segmented_audio(audio_bytes, trials, phase):
     for i, (segment_bytes, trial) in enumerate(zip(segments, trials)):
         result = transcribe_segment(segment_bytes, i)
         if result:
-            transcript = result.text.lower().strip()
+            transcript = result
             spoken_color = parse_color_from_transcript(transcript)
         else:
             transcript = "N/A"
