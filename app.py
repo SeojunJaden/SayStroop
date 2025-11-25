@@ -396,8 +396,6 @@ def process_segmented_audio(audio_bytes, trials, phase):
             correct = (spoken_color == trial["word"]) if spoken_color else False
 
         vad_time = detect_voice_start(segment_bytes)
-
-        correct = (spoken_color == trial["color"]) if spoken_color else False
         segment_start = test_start_offset + (i * TRIAL_TIME_LIMIT)
 
         if vad_time is not None:
