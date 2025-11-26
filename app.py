@@ -323,14 +323,15 @@ def save_results_to_supabase(trial1_results, trial2_results, user_id, user_name)
         }).execute()
 
         records = []
-        for r in results:
+        
+        for r in trial1_results:
             record = {
                 'user_id': user_id,
                 'trial_type': 'color_naming',
                 'trial_number': r['trial'],
                 'word_displayed': r['word'].upper(),
                 'color_displayed': r['color'],
-                'spoken_color': r['answer'] if r['answer'] != 'NO RESPONSE' else None,
+                'spoken_color': r['answer'].upper() if r['answer'] != 'NO RESPONSE' else None,
                 'transcript': r['transcript'],
                 'display_timestamp': r.get('absolute_timestamp', 0),
                 'speech_timestamp': r.get('speech_timestamp'),
@@ -338,14 +339,15 @@ def save_results_to_supabase(trial1_results, trial2_results, user_id, user_name)
                 'correct': r['correct']
             }
             records.append(record)
-        for r in results:
+        
+        for r in trial2_results:  
             record = {
                 'user_id': user_id,
                 'trial_type': 'word_reading',
                 'trial_number': r['trial'],
                 'word_displayed': r['word'].upper(),
                 'color_displayed': r['color'],
-                'spoken_color': r['word'].upper() if r['answer'] != 'NO RESPONSE' else None,
+                'spoken_color': r['answer'].upper() if r['answer'] != 'NO RESPONSE' else None, 
                 'transcript': r['transcript'],
                 'display_timestamp': r.get('absolute_timestamp', 0),
                 'speech_timestamp': r.get('speech_timestamp'),
@@ -353,6 +355,7 @@ def save_results_to_supabase(trial1_results, trial2_results, user_id, user_name)
                 'correct': r['correct']
             }
             records.append(record)
+            
         response = supabase.table('stroop_trials').insert(records).execute()
         print(f"Successfully inserted {len(response.data)} records")
         return True
