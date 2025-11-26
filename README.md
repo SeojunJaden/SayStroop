@@ -35,3 +35,10 @@ In our experiment we had two trials to extract data from. With trial one, our pa
 - Packages: Streamlit, Web-RTC, Supabase, pathlib, Base64, JSON
 - OpenAI's Whisper
 - Generative AI: ChatGPT, Claude, VO
+
+## Other SayStroop Media
+Research Paper: SayStroop: Demonstrating Automatic Processing Interference with the Stroop Effect
+  - https://docs.google.com/document/d/1zctpeH_zkIwXiEAbQY7sn9oNTkqClkbdjjVvVHCmNeE/edit?usp=sharing
+Slideshow Presentation:
+  - https://www.canva.com/design/DAG5XhsV3Lc/KloV86jW-DFQ8Qav4cJ2oQ/edit?utm_content=DAG5XhsV3Lc&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton 
+
