@@ -239,9 +239,12 @@ def transcribe_segment(segment_bytes, segment_index):
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         audio_path = temp_dir / f"segment_{segment_index}_{timestamp}.wav"
+        
+        # Write the segment to file
         with open(audio_path, "wb") as f:
             f.write(segment_bytes)
 
+        # Transcribe the audio file
         with open(audio_path, "rb") as audio_file:
             result = client.audio.transcriptions.create(
                 model="whisper-1",
@@ -252,10 +255,20 @@ def transcribe_segment(segment_bytes, segment_index):
                 prompt="red, blue, green, yellow, purple, orange"
             )
 
-        audio_path.unlink()
+        try:
+            if audio_path.exists():
+                audio_path.unlink()
+        except Exception as cleanup_error:
+            print(f"Warning: Could not delete temporary file {audio_path}: {cleanup_error}")
+        
         return result.text.lower().strip()
 
     except Exception as e:
+        try:
+            if 'audio_path' in locals() and audio_path.exists():
+                audio_path.unlink()
+        except:
+            pass
         st.error(f"Error transcribing segment {segment_index}: {str(e)}")
         return None
 
