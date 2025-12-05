@@ -654,14 +654,14 @@ else:
         st.markdown(f"""
             <div style='text-align: center;'>
                 <div style='font-size: 24px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Correct Answers</div>
-                <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>18/{NUM_TRIALS}</div>
+                <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>{correct_count_1}/{NUM_TRIALS}</div>
             </div>
         """, unsafe_allow_html=True)
     with col2:
         st.markdown(f"""
             <div style='text-align: center;'>
                 <div style='font-size: 24px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Avg Response Time</div>
-                <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>1.3s</div>
+                <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>{avg_time_1:.2f}s</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -674,14 +674,14 @@ else:
         st.markdown(f"""
             <div style='text-align: center;'>
                 <div style='font-size: 24px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Correct Answers</div>
-                <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>19/{NUM_TRIALS}</div>
+                <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>{correct_count_2}/{NUM_TRIALS}</div>
             </div>
         """, unsafe_allow_html=True)
     with col4:
         st.markdown(f"""
             <div style='text-align: center;'>
                 <div style='font-size: 24px; font-weight: bold; color: #ef4444; margin-bottom: 10px;'>Avg Response Time</div>
-                <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>0.75s</div>
+                <div style='font-size: 36px; font-weight: bold; color: #ef4444;'>{avg_time_2:.2f}s</div>
             </div>
         """, unsafe_allow_html=True)
     
