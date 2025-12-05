@@ -4,16 +4,18 @@
 SayStroop is a website testing a new aspect of the Stroop effect on participants. The goal of this website is to highlight the interference of automatic processing on controlled tasks through the Stroop effect. The website was built using Streamlit with integration of OpenAI's Whisper and Web-RTC for speech recognition. 
 
 ## Usage
-Participants will visit the website and read a brief description of the Stroop effect. If participants consent to the experiment, we will keep their name and a given special ID. Once a participant enters their information they will encounter a 5 second timer prompting them to get ready, afterwards the experiment will begin. Participants will have to manually activate their microphone to begin the voice recording. During the experiment participants will read all words/colors in "incongruent" font. The experiment has two trials, one in which participants read the word and the second being where they read the font color. After a certain number of trials the experiment will conclude and the website will thank the participant for their time. For more details, visit the final research paper (DONT FORGET TO LINK FINAL RESEARCH PAPER HERE).
+Participants will visit the website and read a brief description of the Stroop effect. If participants consent to the experiment, we will keep their name and a given special ID. Once a participant enters their information they will encounter a 5 second timer prompting them to get ready, afterwards the experiment will begin. Participants will have to manually activate their microphone to begin the voice recording. During the experiment participants will read all words/colors in "incongruent" font. The experiment has two trials, one in which participants read the word and the second being where they read the font color. After a certain number of trials the experiment will conclude and the website will thank the participant for their time. For more details, visit the [final research paper](https://drive.google.com/file/d/1L-ovNnvnolchs9ZM8QIB-zaKLDsQgYu8/view?usp=sharing).
 
 ## Data Collection
-| Reading Word | Reading Color of Font |
-|--------------|----------------------|
-| <br><br>     | <br><br>             |
-| <br><br>     | <br><br>             |
-| <br><br>     | <br><br>             |
-| <br><br>     | <br><br>             |
-| <br><br>     | <br><br>             |
+# Data Schema Documentation
+
+| id | user_id | trial_number | word_displayed | color_displayed | spoken_color | transcript | display_timestamp | speech_timestamp | reaction_time | correct |
+|----|---------|--------------|----------------|-----------------|--------------|------------|-------------------|------------------|---------------|---------|
+| <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> |
+| <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> |
+| <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> |
+| <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> |
+| <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> | <br><br> |
 
 In our experiment we had two trials to extract data from. With trial one, our participant is essentially reading the word being present to them (NOT the font color). Trial one serves as the baseline of our project, demonstrating how reading processes faster since it is highly automated. In trial two, our participant will instead be reading the font color instead of the actual word. In this trial participants will likely have a slower reaction time as they have to process the font color instead of reading the word directly. This highlights the difference between automated and controlled responses as participants will take more time needing to process the difference in word meaning and font color. 
 
